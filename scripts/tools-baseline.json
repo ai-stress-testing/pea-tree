@@ -1,0 +1,94 @@
+{
+  "ai/multi-agent-systems-architect": [
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "ai/prompt-engineer": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "backend/backend-architect": [
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "backend/realtime-collaboration-engineer": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "frontend/designer": [
+    "Artifact",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "frontend/react-dev": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "legal/product-counsel": [
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "logicians/falsifier": [
+    "Glob",
+    "Grep",
+    "Read"
+  ],
+  "logicians/software-architect": [
+    "Glob",
+    "Grep",
+    "Read"
+  ],
+  "pm/project-manager": [
+    "Glob",
+    "Grep",
+    "Read",
+    "TaskCreate",
+    "TaskList",
+    "TaskUpdate",
+    "Write",
+    "mcp__github__issue_read",
+    "mcp__github__issue_write",
+    "mcp__github__sub_issue_write"
+  ],
+  "pm/ticket-workflow-steward": [
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "security/senior-secops": [
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "testing/test-automation-engineer": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ]
+}

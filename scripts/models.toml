@@ -1,0 +1,36 @@
+# Model registry — capability tiers + aliases -> concrete model ids (GT-33).
+#
+# The single point of model sovereignty (per the Nous review): swap the model
+# behind a whole tier here, in one line, instead of editing 80+ agent.md files.
+#
+# A role's frontmatter `model:` may be:
+#   - a tier name  (reason / build / cheap)  -> resolved via [tiers]
+#   - an alias     (opus / sonnet / haiku / fable) -> resolved via [aliases]
+#   - a concrete id (claude-opus-4-8, ...)    -> used as-is
+# build_index.py resolves all three to the canonical id below and lints it.
+# An unknown value is a lint error (a typo would otherwise drop a role out of
+# the reason-tier read-only check).
+#
+# Current generation: the Claude 5 family + Opus 4.8. Update the ids here when
+# the generation turns — that IS the "update the scripts for the new model"
+# step, and it touches nothing else.
+
+[tiers]
+# reason - reasoning-bound roles (static review, architecture, threat
+#          modeling). The reason-tier model is the one build_index.py holds to
+#          read-only (no Edit/Bash; Write only via documented exception),
+#          however it's spelled in a role's frontmatter.
+reason = "claude-opus-4-8"
+# build  - implementation roles (the common case: write code, run Bash).
+build = "claude-sonnet-5"
+# cheap  - high-volume / low-complexity roles (extraction, summarization).
+cheap = "claude-haiku-4-5-20251001"
+
+[aliases]
+# Human-readable shorthands still valid in frontmatter; they resolve to the
+# current generation's ids so the readable roster doesn't churn on a model
+# bump. Keep these pointing at the same ids the tiers use.
+opus = "claude-opus-4-8"
+sonnet = "claude-sonnet-5"
+haiku = "claude-haiku-4-5-20251001"
+fable = "claude-fable-5"
