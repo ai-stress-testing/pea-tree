@@ -44,15 +44,30 @@ messaging is in scope.
    curated `agents/` roster (this sprint: 13 roles / 8 teams) adopting the
    Ges-Talt docs + verifier conventions, not ad hoc prompting.
 
+## Tech stack (locked 2026-07-20)
+
+- **Frontend**: TypeScript + Vue 3 (Vite). The three interfaces
+  (messaging, Mermaid, kanban) are views in one SPA; messaging feels like
+  Slack (channels, threads, an @-mention composer, live-streaming turns).
+- **Models**: Ollama, local, **interchangeable** — the harness targets a
+  7B–30B parameter model and must not hard-depend on any single one. Model
+  choice is a runtime setting resolved through a tier→model map, not baked
+  into code.
+- **Priority order**: the **iterative groupchat** (requirement §4) ships
+  first; Mermaid (§3) and kanban (§2) follow. Messaging (§2/§8) is built
+  only as far as the groupchat needs it this sprint (§2).
+
 ## Constraints
 
-- No new backend dependency where the existing store/transport already
-  covers the need (`backend/backend-architect`'s call, not asserted by
-  implementers).
-- The queue must run against the target low-intelligence, large-context
-  model tier (issue #1) — a design that only works on a frontier model has
-  failed the brief; `ai/prompt-engineer` tests against the real target
-  tier, not a stand-in.
+- **Ollama-only backend for the pipeline** — no cloud model calls; a design
+  that only works on a frontier model has failed the brief. The queue runs
+  against a real 7B–30B Ollama model; `ai/prompt-engineer` tests against
+  that tier, not a stand-in.
+- **Models interchangeable** — swapping the Ollama model behind a tier is a
+  one-setting change; no persona hard-codes a concrete model id.
+- No new dependency where the platform (Vue, native `fetch`/streams, the
+  Ollama HTTP API) already covers the need
+  (`backend/backend-architect`'s call, not asserted by implementers).
 - Every sub-issue this sprint cuts must trace to a requirement number
   above; no sub-issue exists only to be tracked.
 
