@@ -1,43 +1,37 @@
 import { reactive } from "vue";
-import { Groupchat, RunEvent, RunTotals } from "./lib/pipeline";
+import { Groupchat, RunEvent } from "./lib/pipeline";
 import { OllamaClient } from "./lib/ollama";
 import { DEFAULT_SETTINGS, Settings } from "./lib/settings";
+import { LocalRepository } from "./lib/store/local";
+import type { Repository } from "./lib/store/repository";
+import type { Board, Card, Column, Thread } from "./lib/store/types";
 
-export interface UiTurn {
-  id: string;
-  personaId: string;
-  name: string;
-  cycle: number;
-  text: string;
-  tokenCost: number;
-  requeued: boolean;
-  streaming: boolean;
-}
-
-export type ThreadStatus = "running" | "synth" | "done" | "error";
-
-export interface Thread {
-  id: string;
-  goal: string;
-  participants: string[];
-  turns: UiTurn[];
-  final: string;
-  finalStreaming: boolean;
-  totals: RunTotals | null;
-  status: ThreadStatus;
-  notices: string[];
-  createdAt: number;
-}
+// Re-export persisted types so existing component imports (`../store`) hold.
+export type { UiTurn, Thread, ThreadStatus } from "./lib/store/types";
+export type { Board, Column, Card } from "./lib/store/types";
 
 export type View = "messaging" | "mermaid" | "kanban" | "settings";
 
 interface State {
   view: View;
   settings: Settings;
+  // groupchat
   threads: Thread[];
   activeThreadId: string | null;
   models: string[];
   ollamaOk: boolean | null;
+  // kanban
+  board: Board | null;
+  columns: Column[];
+  cards: Card[];
+  boardLoaded: boolean;
+}
+
+// The persistence seam. Swap via __setRepository (tests) or, later, a
+// RestRepository for the hosted Postgres build — no other code changes.
+let repo: Repository = new LocalRepository();
+export function __setRepository(r: Repository): void {
+  repo = r;
 }
 
 const controllers = new Map<string, AbortController>();
@@ -49,21 +43,22 @@ export const store = reactive<State>({
   activeThreadId: null,
   models: [],
   ollamaOk: null,
+  board: null,
+  columns: [],
+  cards: [],
+  boardLoaded: false,
 });
 
 export const actions = {
+  async init(): Promise<void> {
+    await Promise.all([this.loadBoard(), this.loadThreads(), this.refreshModels()]);
+  },
+
   setView(v: View) {
     store.view = v;
   },
 
-  activeThread(): Thread | null {
-    return store.threads.find((t) => t.id === store.activeThreadId) ?? null;
-  },
-
-  select(id: string) {
-    store.activeThreadId = id;
-  },
-
+  // ---- Ollama ----
   async refreshModels(): Promise<void> {
     try {
       const client = new OllamaClient(store.settings.ollamaOrigin);
@@ -75,8 +70,28 @@ export const actions = {
     }
   },
 
+  // ---- Groupchat ----
+  activeThread(): Thread | null {
+    return store.threads.find((t) => t.id === store.activeThreadId) ?? null;
+  },
+  select(id: string) {
+    store.activeThreadId = id;
+  },
   cancel(id: string) {
     controllers.get(id)?.abort();
+  },
+  async loadThreads(): Promise<void> {
+    const persisted = await repo.listThreads();
+    // A run persisted mid-flight can't resume — settle its status on load.
+    for (const t of persisted) {
+      if (t.status === "running" || t.status === "synth") t.status = "done";
+    }
+    store.threads = persisted;
+  },
+  async deleteThread(id: string): Promise<void> {
+    store.threads = store.threads.filter((t) => t.id !== id);
+    if (store.activeThreadId === id) store.activeThreadId = store.threads[0]?.id ?? null;
+    await repo.deleteThread(id);
   },
 
   startRun(goal: string): string {
@@ -95,20 +110,23 @@ export const actions = {
     };
     store.threads.unshift(thread);
     store.activeThreadId = thread.id;
+    // Mutate the reactive proxy, not the raw object, so the UI tracks updates.
+    const live = store.threads.find((t) => t.id === thread.id)!;
+    void repo.saveThread(live);
 
     const ctrl = new AbortController();
-    controllers.set(thread.id, ctrl);
+    controllers.set(live.id, ctrl);
     const chat = new Groupchat(store.settings);
 
-    const emit = (e: RunEvent) => this.apply(thread, e);
     chat
-      .run(trimmed, emit, ctrl.signal)
-      .catch((err) => thread.notices.push(`fatal: ${(err as Error).message}`))
+      .run(trimmed, (e) => this.apply(live, e), ctrl.signal)
+      .catch((err) => live.notices.push(`fatal: ${(err as Error).message}`))
       .finally(() => {
-        controllers.delete(thread.id);
-        if (thread.status !== "error" && thread.status !== "done") thread.status = "done";
+        controllers.delete(live.id);
+        if (live.status !== "error" && live.status !== "done") live.status = "done";
+        void repo.saveThread(live);
       });
-    return thread.id;
+    return live.id;
   },
 
   apply(thread: Thread, e: RunEvent) {
@@ -131,6 +149,7 @@ export const actions = {
           t.tokenCost = e.turn.tokenCost;
           t.streaming = false;
         }
+        void repo.saveThread(thread);
         break;
       }
       case "requeue":
@@ -152,11 +171,86 @@ export const actions = {
         thread.finalStreaming = false;
         thread.totals = e.totals;
         thread.status = "done";
+        void repo.saveThread(thread);
         break;
       case "error":
-        // Non-fatal notices (e.g. a tier falling back to another model).
         thread.notices.push(e.message);
         break;
     }
+  },
+
+  // ---- Kanban ----
+  async loadBoard(): Promise<void> {
+    const data = await repo.getBoard();
+    store.board = data.board;
+    store.columns = data.columns.slice().sort((a, b) => a.order - b.order);
+    store.cards = data.cards;
+    store.boardLoaded = true;
+  },
+
+  cardsIn(columnId: string): Card[] {
+    return store.cards
+      .filter((c) => c.columnId === columnId)
+      .sort((a, b) => a.order - b.order);
+  },
+
+  overWip(columnId: string): boolean {
+    const col = store.columns.find((c) => c.id === columnId);
+    if (!col || col.wipLimit == null) return false;
+    return this.cardsIn(columnId).length > col.wipLimit;
+  },
+
+  persistBoard(): void {
+    if (!store.board) return;
+    void repo.saveBoard({ board: store.board, columns: store.columns, cards: store.cards });
+  },
+
+  addCard(columnId: string, title: string, issueRef = "", body = ""): void {
+    if (!store.board || !title.trim()) return;
+    const now = Date.now();
+    const order = this.cardsIn(columnId).length;
+    store.cards.push({
+      id: crypto.randomUUID(),
+      boardId: store.board.id,
+      columnId,
+      title: title.trim(),
+      body: body.trim(),
+      issueRef: issueRef.trim(),
+      order,
+      createdAt: now,
+      updatedAt: now,
+    });
+    this.persistBoard();
+  },
+
+  moveCard(cardId: string, toColumnId: string): void {
+    const card = store.cards.find((c) => c.id === cardId);
+    if (!card || card.columnId === toColumnId) return;
+    card.columnId = toColumnId;
+    card.order = this.cardsIn(toColumnId).length; // append to target
+    card.updatedAt = Date.now();
+    this.persistBoard();
+  },
+
+  /** Move a card to the adjacent column (dir -1 left, +1 right). */
+  moveCardDir(cardId: string, dir: -1 | 1): void {
+    const card = store.cards.find((c) => c.id === cardId);
+    if (!card) return;
+    const cur = store.columns.find((c) => c.id === card.columnId);
+    if (!cur) return;
+    const target = store.columns.find((c) => c.order === cur.order + dir);
+    if (target) this.moveCard(cardId, target.id);
+  },
+
+  editCard(cardId: string, patch: Partial<Pick<Card, "title" | "body" | "issueRef">>): void {
+    const card = store.cards.find((c) => c.id === cardId);
+    if (!card) return;
+    Object.assign(card, patch, { updatedAt: Date.now() });
+    this.persistBoard();
+  },
+
+  deleteCard(cardId: string): void {
+    store.cards = store.cards.filter((c) => c.id !== cardId);
+    this.persistBoard();
   },
 };

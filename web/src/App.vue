@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from "vue";
 import { store, actions, View } from "./store";
 import Messaging from "./components/Messaging.vue";
-import MermaidView from "./components/MermaidView.vue";
 import KanbanView from "./components/KanbanView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
+
+// Mermaid is a large dependency — load it only when its tab is opened.
+const MermaidView = defineAsyncComponent(() => import("./components/MermaidView.vue"));
 
 const items: { view: View; label: string; icon: string }[] = [
   { view: "messaging", label: "Messaging", icon: "#" },

@@ -20,11 +20,8 @@ export interface Turn {
   requeued: boolean;
 }
 
-export interface RunTotals {
-  tokens: number;
-  cycles: number;
-  requeues: number;
-}
+export type { RunTotals } from "./store/types";
+import type { RunTotals } from "./store/types";
 
 export type RunEvent =
   | { type: "participants"; ids: string[] }

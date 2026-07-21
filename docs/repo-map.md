@@ -61,5 +61,6 @@ Agent roster detail is in [`agents/INDEX.md`](../agents/INDEX.md).
 
 | Doc dir | Contents |
 |---|---|
-| `docs/sprint-7-26-20-27/` | 6 file(s) |
+| `docs/adr/` | 1 file(s) |
+| `docs/sprint-7-26-20-27/` | 8 file(s) |
 | `docs/templates/` | 5 file(s) |

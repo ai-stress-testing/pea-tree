@@ -46,25 +46,41 @@ Vite proxies `/ollama` → `http://localhost:11434` (see `vite.config.ts`), so
 the browser isn't blocked by CORS. Point elsewhere with
 `OLLAMA_ORIGIN=http://host:11434 npm run dev` or the Settings panel.
 
-## Test / typecheck
+## Test / typecheck / QA
 
 ```
-npm test             # vitest — drives a scripted run against a mocked Ollama
 npm run typecheck    # vue-tsc --noEmit
+npm test             # vitest — pipeline + repository + kanban store units
+npm run test:e2e     # Playwright — kanban + groupchat (mocked Ollama), no live model needed
+npm run qa           # all three
 ```
+
+Playwright uses the environment's pre-installed Chromium (see
+`playwright.config.ts`; override with `PW_CHROMIUM=/path/to/chrome`). The
+groupchat e2e mocks the Ollama HTTP API, so QA needs no running model.
+
+## State management
+
+The UI never touches storage directly. It reads/writes a **`Repository`**
+(`src/lib/store/repository.ts`) — the persistence seam. Today the only
+implementation is `LocalRepository` (localStorage); a hosted build swaps in
+a `RestRepository` over a Postgres/C++ service with no UI change. See
+`docs/adr/0001-state-management.md`. Board and run history survive reload.
 
 ## Layout
 
 ```
 src/
-  lib/ollama.ts       Ollama client (streaming /api/chat, /api/tags, resolver)
-  lib/settings.ts     tier→model map, re-queue cap, token target
-  lib/pipeline.ts     the groupchat engine (select → iterate → re-queue → synth)
-  lib/pipeline.test.ts
-  store.ts            reactive UI state driven by pipeline events
-  components/         Messaging (Slack-like), TurnCard, Settings, Mermaid, Kanban
-  generated/personas.ts   compiled from ../agents (do not edit by hand)
+  lib/ollama.ts        Ollama client (streaming /api/chat, /api/tags, resolver)
+  lib/settings.ts      tier→model map, re-queue cap, token target
+  lib/pipeline.ts      the groupchat engine (select → iterate → re-queue → synth)
+  lib/store/           types · repository (seam) · local (localStorage) · seed
+  store.ts             reactive cache over the repository; driven by pipeline events
+  components/          Messaging (Slack-like), TurnCard, Settings, Mermaid, Kanban
+  generated/personas.ts    compiled from ../agents (do not edit by hand)
+e2e/                   Playwright specs (kanban, messaging)
 ```
 
-Mermaid renders live. Kanban is stubbed pending its sprint slot
-(`docs/sprint-7-26-20-27/issue-specs/kanban-mvp.md`).
+Mermaid renders live. Kanban is a fully persisted board (columns with
+explicit entry/exit rules + WIP limits, move/edit/delete, issue-ref
+traceability).
