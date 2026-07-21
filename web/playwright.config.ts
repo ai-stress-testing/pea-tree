@@ -1,9 +1,12 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 
-// The pre-installed Chromium in this environment (do not run `playwright
-// install`). Override with PW_CHROMIUM if the path differs locally.
-const CHROMIUM =
+// Use the environment's pre-installed Chromium when present (this sandbox);
+// otherwise fall back to Playwright's managed browser (CI runs
+// `playwright install`). Override with PW_CHROMIUM.
+const candidate =
   process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const executablePath = existsSync(candidate) ? candidate : undefined;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,7 +24,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {
-          executablePath: CHROMIUM,
+          ...(executablePath ? { executablePath } : {}),
           args: ["--no-sandbox"], // container runs as root
         },
       },

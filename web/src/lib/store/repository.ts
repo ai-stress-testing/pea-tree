@@ -1,4 +1,4 @@
-import type { BoardData, Thread } from "./types";
+import type { BoardData, Diagram, Thread } from "./types";
 
 // The persistence seam. The UI depends only on this interface, never on how
 // bytes are stored. Today the sole implementation is LocalRepository
@@ -16,6 +16,11 @@ export interface Repository {
   listThreads(): Promise<Thread[]>;
   saveThread(thread: Thread): Promise<void>;
   deleteThread(id: string): Promise<void>;
+
+  /** Saved Mermaid diagrams, newest first. Seeds an example on first use. */
+  listDiagrams(): Promise<Diagram[]>;
+  saveDiagram(diagram: Diagram): Promise<void>;
+  deleteDiagram(id: string): Promise<void>;
 
   /** Wipe everything (used by tests and a "reset" affordance). */
   clear(): Promise<void>;

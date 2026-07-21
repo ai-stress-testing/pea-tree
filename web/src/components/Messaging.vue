@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, watch } from "vue";
 import { store, actions } from "../store";
 import TurnCard from "./TurnCard.vue";
+import MermaidDiagram from "./MermaidDiagram.vue";
 
 const draft = ref("");
 const bodyEl = ref<HTMLElement | null>(null);
@@ -116,6 +117,11 @@ function statusLabel(s: string): string {
             </div>
             <div class="turn-text">{{ thread.final || "…" }}</div>
           </div>
+
+          <div v-if="thread.loopMermaid" class="loop" data-testid="loop-display">
+            <div class="loop-head">⟳ Execution loop</div>
+            <MermaidDiagram :source="thread.loopMermaid" />
+          </div>
         </template>
       </div>
 
@@ -180,6 +186,8 @@ function statusLabel(s: string): string {
   border-radius: 10px; background: rgba(46, 182, 125, 0.06);
 }
 .final-head { font-weight: 700; color: var(--accent-2); margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.loop { margin: 12px 0 6px; padding: 14px; border: 1px solid var(--requeue); border-radius: 10px; background: rgba(176, 123, 224, 0.06); }
+.loop-head { font-weight: 700; color: var(--requeue); margin-bottom: 10px; }
 .tok { color: var(--accent-2); }
 .streaming { color: var(--accent); }
 

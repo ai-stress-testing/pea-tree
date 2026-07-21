@@ -1,4 +1,4 @@
-import type { BoardData } from "./types";
+import type { BoardData, Diagram } from "./types";
 
 // The default board a fresh install starts with. Column entry/exit rules are
 // explicit and checkable (pm/ticket-workflow-steward's charter) rather than
@@ -42,4 +42,24 @@ export function seedBoard(): BoardData {
       },
     ],
   };
+}
+
+// One example diagram so the Mermaid interface isn't empty on first open.
+export function seedDiagrams(): Diagram[] {
+  const now = Date.now();
+  return [
+    {
+      id: "diagram-seed-1",
+      name: "Groupchat pipeline",
+      source: `flowchart LR
+  U[User message] --> R{Who is involved?}
+  R -->|mentions ∪ router| Q[Ordered queue]
+  Q --> PM[PM] --> AR[Architect] --> FE[Front-end]
+  FE --> Op[Opsec] --> Lg[Legal]
+  Op -. re-queue .-> AR
+  Lg --> F[[Final plan + loop]]`,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
 }

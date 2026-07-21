@@ -70,5 +70,13 @@ describe("Groupchat.run", () => {
       (e) => e.type === "turn-end" && e.turn.requeued && e.turn.personaId === "pm/project-manager",
     );
     expect(requeued.length).toBe(1);
+
+    // Synthesis emits an execution loop (default, since the mock final has no
+    // ```loop block) as valid Mermaid, before final-end.
+    const loop = events.find((e) => e.type === "loop");
+    expect(loop && loop.type === "loop").toBe(true);
+    if (loop?.type !== "loop") throw new Error("no loop");
+    expect(loop.mermaid).toContain("flowchart LR");
+    expect(loop.mermaid).toContain('pr(["Prep PR"])');
   });
 });

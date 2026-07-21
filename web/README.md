@@ -15,8 +15,11 @@ The harness front-end. Three interfaces (Messaging, Mermaid, Kanban); the
 4. `security/senior-secops` (Opsec) and `legal/product-counsel` may emit
    `REQUEUE: <team/role>` to send the goal back to an earlier agent, up to a
    cap — so the queue always terminates.
-5. The orchestrator synthesizes a final plan. Token cost + cycle count are
-   reported per turn and per run.
+5. The orchestrator synthesizes **two** things: a final plan **and an
+   execution loop** — agents spun in parallel, sequential handoffs, a lint
+   gate (fail → loop back to the responsible agent, pass → continue), a
+   test gate, then prep-PR — compiled to a Mermaid diagram and rendered
+   under the plan. Token cost + cycle count are reported per turn and run.
 
 Personas come from `../agents/**/agent.md`, compiled to
 `src/generated/personas.ts` by `scripts/build_personas.mjs` — add a role in
@@ -74,13 +77,17 @@ src/
   lib/ollama.ts        Ollama client (streaming /api/chat, /api/tags, resolver)
   lib/settings.ts      tier→model map, re-queue cap, token target
   lib/pipeline.ts      the groupchat engine (select → iterate → re-queue → synth)
+  lib/loop.ts          execution-loop spec → default builder → Mermaid compiler
   lib/store/           types · repository (seam) · local (localStorage) · seed
   store.ts             reactive cache over the repository; driven by pipeline events
-  components/          Messaging (Slack-like), TurnCard, Settings, Mermaid, Kanban
+  components/          Messaging (Slack-like), TurnCard, MermaidDiagram (reusable),
+                       Mermaid (persisted editor), Kanban, Settings
   generated/personas.ts    compiled from ../agents (do not edit by hand)
-e2e/                   Playwright specs (kanban, messaging)
+e2e/                   Playwright specs (kanban, messaging, mermaid)
 ```
 
-Mermaid renders live. Kanban is a fully persisted board (columns with
-explicit entry/exit rules + WIP limits, move/edit/delete, issue-ref
-traceability).
+- **Mermaid** is a persisted multi-diagram editor (list/new/edit/delete,
+  live client-side render, visible error state).
+- **Kanban** is a fully persisted board (columns with explicit entry/exit
+  rules + WIP limits, move/edit/delete, issue-ref traceability).
+- **CI**: `.github/workflows/web-qa.yml` runs `npm run qa` on push/PR.

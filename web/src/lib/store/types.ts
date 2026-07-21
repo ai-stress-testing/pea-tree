@@ -49,6 +49,16 @@ export interface BoardData {
   cards: Card[];
 }
 
+// ---- Mermaid ---------------------------------------------------------------
+
+export interface Diagram {
+  id: string;
+  name: string;
+  source: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ---- Groupchat runs (persisted history) ------------------------------------
 
 export interface UiTurn {
@@ -77,6 +87,8 @@ export interface Thread {
   turns: UiTurn[];
   final: string;
   finalStreaming: boolean;
+  /** Mermaid source for the execution-loop diagram emitted by synthesis. */
+  loopMermaid: string;
   totals: RunTotals | null;
   status: ThreadStatus;
   notices: string[];

@@ -62,6 +62,11 @@ test("runs a groupchat: streams turns, honors a re-queue, pins the final plan", 
   await expect(page.locator(".final")).toContainText("FINAL PLAN: ship it.");
   await expect(page.locator(".pane-header")).toContainText("re-queue(s)");
 
+  // The execution loop is rendered as a Mermaid diagram under the plan.
+  const loop = page.getByTestId("loop-display");
+  await expect(loop).toBeVisible();
+  await expect(loop.getByTestId("mermaid-canvas").locator("svg")).toBeVisible();
+
   // Run is persisted: it survives a reload as history.
   await page.reload();
   await expect(page.locator(".thread-row").first()).toContainText(goal);

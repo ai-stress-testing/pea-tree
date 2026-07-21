@@ -9,6 +9,7 @@
 import { OllamaClient } from "./ollama";
 import { Settings, Tier, tierForModelAlias } from "./settings";
 import { PERSONAS, PERSONA_BY_ID, Persona } from "../generated/personas";
+import { compileLoopToMermaid, defaultLoop, parseLoopSpec, stripLoopBlock } from "./loop";
 
 export interface Turn {
   id: string;
@@ -31,6 +32,7 @@ export type RunEvent =
   | { type: "requeue"; by: string; target: string; accepted: boolean }
   | { type: "final-start" }
   | { type: "final-token"; chunk: string }
+  | { type: "loop"; mermaid: string }
   | { type: "final-end"; final: string; totals: RunTotals }
   | { type: "error"; message: string };
 
@@ -194,6 +196,7 @@ export class Groupchat {
 
     const queue = await this.selectParticipants(goal, signal);
     emit({ type: "participants", ids: queue });
+    const initialParticipants = queue.slice(); // for the execution-loop diagram
 
     const turns: Turn[] = [];
     let requeues = 0;
@@ -261,9 +264,9 @@ export class Groupchat {
       }
     }
 
-    // Synthesize the final result.
+    // Synthesize the final result: the plan prompt AND an execution loop.
     emit({ type: "final-start" });
-    let final = "";
+    let raw = "";
     try {
       const res = await this.client.chat({
         model: this.tierModel.reason,
@@ -274,23 +277,50 @@ export class Groupchat {
             role: "system",
             content:
               "You are the orchestrator closing an iterative planning groupchat. " +
-              "Fold the turns into ONE actionable MVP plan: numbered steps, the " +
-              "key constraints each specialist raised, and explicit open risks. " +
-              "Be concrete; do not invent expertise no one contributed.",
+              "Produce TWO things.\n" +
+              "(1) ONE actionable MVP plan: numbered steps, the key constraints each " +
+              "specialist raised, and explicit open risks. Be concrete; do not invent " +
+              "expertise no one contributed.\n" +
+              "(2) An EXECUTION LOOP describing how the agents run: which run in " +
+              "parallel, the sequential handoffs, and gates. It MUST end by passing " +
+              "through a lint gate (on failure loop back to the responsible agent, on " +
+              "success continue), then a test gate, then prep a PR. Emit it LAST as a " +
+              "fenced block:\n" +
+              "```loop\n{ \"nodes\": [{\"id\":\"ag0\",\"label\":\"...\",\"kind\":\"agent\"}, " +
+              "{\"id\":\"lint\",\"label\":\"Lint\",\"kind\":\"gate\"}], \"edges\": " +
+              "[{\"from\":\"start\",\"to\":\"ag0\",\"type\":\"parallel\"}, " +
+              "{\"from\":\"lint\",\"to\":\"ag0\",\"type\":\"fail\",\"label\":\"lint fails\"}] }\n```\n" +
+              "kinds: start|agent|gate|terminal. edge types: seq|parallel|pass|fail.",
           },
-          { role: "user", content: `INITIAL GOAL:\n${goal}\n\nGROUPCHAT:\n${this.digest(turns)}` },
+          {
+            role: "user",
+            content:
+              `INITIAL GOAL:\n${goal}\n\nPARTICIPANTS: ${initialParticipants.join(", ")}\n\n` +
+              `GROUPCHAT:\n${this.digest(turns)}`,
+          },
         ],
         onToken: (chunk) => {
-          final += chunk;
+          raw += chunk;
           emit({ type: "final-token", chunk });
         },
       });
-      final = res.text;
+      raw = res.text;
       totalTokens += res.promptTokens + res.evalTokens;
     } catch (e) {
       if (signal?.aborted) return;
       emit({ type: "error", message: `synthesis: ${(e as Error).message}` });
     }
-    emit({ type: "final-end", final, totals: { tokens: totalTokens, cycles: cycle, requeues } });
+
+    // Compile the loop: model-emitted spec if valid, else a default built from
+    // the participants + standard gates. Always renders valid Mermaid.
+    const labels = initialParticipants.map((id) => PERSONA_BY_ID[id]?.role ?? id);
+    const spec = parseLoopSpec(raw) ?? defaultLoop(labels);
+    emit({ type: "loop", mermaid: compileLoopToMermaid(spec) });
+
+    emit({
+      type: "final-end",
+      final: stripLoopBlock(raw),
+      totals: { tokens: totalTokens, cycles: cycle, requeues },
+    });
   }
 }

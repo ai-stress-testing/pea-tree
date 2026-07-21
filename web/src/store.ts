@@ -4,11 +4,11 @@ import { OllamaClient } from "./lib/ollama";
 import { DEFAULT_SETTINGS, Settings } from "./lib/settings";
 import { LocalRepository } from "./lib/store/local";
 import type { Repository } from "./lib/store/repository";
-import type { Board, Card, Column, Thread } from "./lib/store/types";
+import type { Board, Card, Column, Diagram, Thread } from "./lib/store/types";
 
 // Re-export persisted types so existing component imports (`../store`) hold.
 export type { UiTurn, Thread, ThreadStatus } from "./lib/store/types";
-export type { Board, Column, Card } from "./lib/store/types";
+export type { Board, Column, Card, Diagram } from "./lib/store/types";
 
 export type View = "messaging" | "mermaid" | "kanban" | "settings";
 
@@ -25,6 +25,9 @@ interface State {
   columns: Column[];
   cards: Card[];
   boardLoaded: boolean;
+  // mermaid
+  diagrams: Diagram[];
+  activeDiagramId: string | null;
 }
 
 // The persistence seam. Swap via __setRepository (tests) or, later, a
@@ -47,11 +50,18 @@ export const store = reactive<State>({
   columns: [],
   cards: [],
   boardLoaded: false,
+  diagrams: [],
+  activeDiagramId: null,
 });
 
 export const actions = {
   async init(): Promise<void> {
-    await Promise.all([this.loadBoard(), this.loadThreads(), this.refreshModels()]);
+    await Promise.all([
+      this.loadBoard(),
+      this.loadThreads(),
+      this.loadDiagrams(),
+      this.refreshModels(),
+    ]);
   },
 
   setView(v: View) {
@@ -103,6 +113,7 @@ export const actions = {
       turns: [],
       final: "",
       finalStreaming: false,
+      loopMermaid: "",
       totals: null,
       status: "running",
       notices: [],
@@ -165,6 +176,9 @@ export const actions = {
         break;
       case "final-token":
         thread.final += e.chunk;
+        break;
+      case "loop":
+        thread.loopMermaid = e.mermaid;
         break;
       case "final-end":
         thread.final = e.final;
@@ -252,5 +266,47 @@ export const actions = {
   deleteCard(cardId: string): void {
     store.cards = store.cards.filter((c) => c.id !== cardId);
     this.persistBoard();
+  },
+
+  // ---- Mermaid ----
+  async loadDiagrams(): Promise<void> {
+    store.diagrams = await repo.listDiagrams();
+    if (!store.activeDiagramId) store.activeDiagramId = store.diagrams[0]?.id ?? null;
+  },
+
+  activeDiagram(): Diagram | null {
+    return store.diagrams.find((d) => d.id === store.activeDiagramId) ?? null;
+  },
+
+  selectDiagram(id: string) {
+    store.activeDiagramId = id;
+  },
+
+  addDiagram(name = "Untitled diagram"): string {
+    const now = Date.now();
+    const d: Diagram = {
+      id: crypto.randomUUID(),
+      name,
+      source: "flowchart LR\n  A[Start] --> B[Next]",
+      createdAt: now,
+      updatedAt: now,
+    };
+    store.diagrams.unshift(d);
+    store.activeDiagramId = d.id;
+    void repo.saveDiagram(d);
+    return d.id;
+  },
+
+  updateDiagram(id: string, patch: Partial<Pick<Diagram, "name" | "source">>): void {
+    const d = store.diagrams.find((x) => x.id === id);
+    if (!d) return;
+    Object.assign(d, patch, { updatedAt: Date.now() });
+    void repo.saveDiagram({ ...d });
+  },
+
+  deleteDiagram(id: string): void {
+    store.diagrams = store.diagrams.filter((d) => d.id !== id);
+    if (store.activeDiagramId === id) store.activeDiagramId = store.diagrams[0]?.id ?? null;
+    void repo.deleteDiagram(id);
   },
 };

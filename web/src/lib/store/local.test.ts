@@ -14,7 +14,7 @@ function makeKv(): KvDriver {
 function thread(id: string, createdAt: number): Thread {
   return {
     id, goal: "g", participants: [], turns: [], final: "", finalStreaming: false,
-    totals: null, status: "done", notices: [], createdAt,
+    loopMermaid: "", totals: null, status: "done", notices: [], createdAt,
   };
 }
 
