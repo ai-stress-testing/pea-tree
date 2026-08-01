@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Node / Vite
+web/node_modules/
+web/dist/
+# Data (SQLite lives in the Docker volume / local data dir)
+data/*.db
+data/*.db-*
+.env

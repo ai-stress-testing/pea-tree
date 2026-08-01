@@ -1,0 +1,32 @@
+# Takt-Harness — one web service (FastAPI + built SPA) + a persistent SQLite
+# volume. The 30B model runs on the host (LM Studio/llama.cpp/vLLM) exposing an
+# OpenAI-compatible API on :1234; the container reaches it via
+# host.docker.internal.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # DB lives in the named volume, under the guard-scoped data tree.
+      TAKT_DATA_DIR: /app/data
+      # Ges-Talt mounted read-only (see the bind mount below).
+      TAKT_GESTALT_ROOT: /gestalt
+      TAKT_AGENT_BASE_URL: http://host.docker.internal:1234/v1
+      TAKT_AGENT_MODEL: local-model
+    volumes:
+      - takt-data:/app/data
+      # Read-only bind: the app reads the roster/context, never writes it.
+      - ../Ges-Talt:/gestalt:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  takt-data:
