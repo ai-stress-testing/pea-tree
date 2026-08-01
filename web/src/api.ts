@@ -5,6 +5,11 @@ export interface DocMeta { id: number; doc_type: string; title: string }
 export interface Doc extends DocMeta { sprint_id: number; content: string; updated_at: string }
 export interface LibraryItem { type: string; label: string }
 export interface AgentStatus { available: boolean; models: string[]; endpoint: string }
+export interface Stage { id: string; label: string }
+export interface Issue {
+  id: number; title: string; description: string; priority: string;
+  tags: string; stage: string; project_id: number | null;
+}
 
 async function j<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -26,6 +31,12 @@ export const api = {
     fetch(`/api/documents/${id}`, { method: "PUT", headers: h(), body: JSON.stringify({ content, title }) }).then(j<Doc>),
   library: () => fetch("/api/doc-library").then(j<LibraryItem[]>),
   agentStatus: () => fetch("/api/agent/status").then(j<AgentStatus>),
+  stages: () => fetch("/api/kanban/stages").then(j<Stage[]>),
+  issues: () => fetch("/api/issues").then(j<Issue[]>),
+  createIssue: (title: string, priority = "medium", tags = "") =>
+    fetch("/api/issues", { method: "POST", headers: h(), body: JSON.stringify({ title, priority, tags }) }).then(j<Issue>),
+  updateIssue: (id: number, patch: { stage?: string; project_id?: number | null; priority?: string }) =>
+    fetch(`/api/issues/${id}`, { method: "PUT", headers: h(), body: JSON.stringify(patch) }).then(j<Issue>),
   agentAssist: (id: number, selection: string, instruction: string, agent_ids: string[]) =>
     fetch(`/api/documents/${id}/agent-assist`, { method: "POST", headers: h(), body: JSON.stringify({ selection, instruction, agent_ids }) })
       .then(j<{ results: { agent: string; text?: string; error?: string }[] }>),

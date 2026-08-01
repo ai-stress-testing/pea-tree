@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .db import SessionLocal, init_db
 from .roster import seed_agents
-from .routers import agents, docs
+from .routers import agents, docs, kanban
 
 app = FastAPI(title="Takt-Harness", version="0.1.0")
 
@@ -25,6 +25,7 @@ app.add_middleware(
 
 app.include_router(docs.router)
 app.include_router(agents.router)
+app.include_router(kanban.router)
 
 
 @app.on_event("startup")

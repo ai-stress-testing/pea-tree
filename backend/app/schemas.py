@@ -41,3 +41,29 @@ class DocumentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class IssueIn(BaseModel):
+    title: str
+    description: str = ""
+    priority: str = "medium"
+    tags: str = ""
+
+
+class IssueUpdate(BaseModel):
+    stage: str | None = None
+    project_id: int | None = None
+    priority: str | None = None
+
+
+class IssueOut(BaseModel):
+    id: int
+    title: str
+    description: str
+    priority: str
+    tags: str
+    stage: str
+    project_id: int | None
+
+    class Config:
+        from_attributes = True
