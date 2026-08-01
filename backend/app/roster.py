@@ -1,69 +1,67 @@
-"""Loads the Ges-Talt roster as the app's available agents — READ ONLY.
+"""The agent roster — now DB-backed and owned by Takt-Harness.
 
-Every read goes through guard.gestalt_read_path, so this module physically
-cannot escape the ges-talt tree or write to it. Parses the installed
-`.claude/agents/*.md` frontmatter (name/description/model/tools) so Takt-Harness
-presents exactly the agents Ges-Talt exposes.
+Agents live in the `agents` SQLite table (seeded once from the former
+Ges-Talt roster, then editable here). The app no longer reads the Ges-Talt
+repo at runtime: this harness drives a smaller local model and keeps its own
+roster. `build_system_prompt` turns a row into the system message passed to
+the local model's /v1 route.
 """
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
-from functools import lru_cache
+import json
+from pathlib import Path
 
-from .guard import gestalt_read_path
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-_FM = re.compile(r"^---\n(.*?)\n---", re.S)
+from .models import Agent
 
-
-@dataclass
-class Agent:
-    id: str            # e.g. "frontend/react-dev"
-    name: str          # frontmatter name, e.g. "frontend-react-dev"
-    team: str
-    description: str
-    model: str
-    tools: list[str]
+SEED_PATH = Path(__file__).resolve().parent / "agents_seed.json"
 
 
-def _parse_frontmatter(text: str) -> dict:
-    m = _FM.match(text)
-    fm: dict[str, str] = {}
-    if not m:
-        return fm
-    for line in m.group(1).splitlines():
-        if ":" in line:
-            k, v = line.split(":", 1)
-            fm[k.strip()] = v.strip()
-    return fm
-
-
-@lru_cache(maxsize=1)
-def load_agents() -> list[Agent]:
-    """Read the installed subagents from ges-talt/.claude/agents (read-only)."""
-    agents_dir = gestalt_read_path(".claude/agents")
-    out: list[Agent] = []
-    if not agents_dir.is_dir():
-        return out
-    for path in sorted(agents_dir.glob("*.md")):
-        fm = _parse_frontmatter(path.read_text(encoding="utf-8"))
-        name = fm.get("name", path.stem)
-        team = name.split("-", 1)[0]
-        out.append(
+def seed_agents(db: Session) -> int:
+    """Populate the agents table from the committed seed on first run.
+    Idempotent: does nothing if the table already has rows."""
+    if db.scalar(select(func.count()).select_from(Agent)):
+        return 0
+    rows = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+    for r in rows:
+        db.add(
             Agent(
-                id=name.replace("-", "/", 1),
-                name=name,
-                team=team,
-                description=fm.get("description", ""),
-                model=fm.get("model", "sonnet"),
-                tools=[t.strip() for t in fm.get("tools", "").split(",") if t.strip()],
+                id=r["id"], name=r["name"], team=r["team"], title=r["title"],
+                description=r.get("description", ""), model="local-model",
+                actions=r.get("actions", []), skills=r.get("skills", []),
+                tools=r.get("tools", []), system_prompt=r.get("system_prompt", ""),
             )
         )
-    return out
+    db.commit()
+    return len(rows)
 
 
-def teams() -> dict[str, list[Agent]]:
+def list_agents(db: Session) -> list[Agent]:
+    return list(db.scalars(select(Agent).order_by(Agent.id)))
+
+
+def get_agent(db: Session, agent_id: str) -> Agent | None:
+    return db.get(Agent, agent_id)
+
+
+def teams(db: Session) -> dict[str, list[Agent]]:
     grouped: dict[str, list[Agent]] = {}
-    for a in load_agents():
+    for a in list_agents(db):
         grouped.setdefault(a.team, []).append(a)
     return grouped
+
+
+def build_system_prompt(agent: Agent) -> str:
+    """The agent row rendered as the system message for the /v1 call. The
+    charter (system_prompt) is authoritative; title/actions/skills are folded
+    in so a lighter row (no charter) still yields a usable persona."""
+    if agent.system_prompt.strip():
+        return agent.system_prompt
+    parts = [f"You are the {agent.title} ({agent.id})."]
+    if agent.actions:
+        parts.append("Responsibilities:\n" + "\n".join(f"- {a}" for a in agent.actions))
+    if agent.skills:
+        parts.append("Skills: " + ", ".join(agent.skills))
+    return "\n\n".join(parts)

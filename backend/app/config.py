@@ -18,9 +18,6 @@ class Settings(BaseSettings):
     # Writable data (SQLite db, exports). Always under `root`.
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
 
-    # Ges-Talt roster + context — READ ONLY. Never written or deleted.
-    gestalt_root: Path = Path("/home/user/Ges-Talt")
-
     # OpenAI-compatible endpoint for the local 30B model (LM Studio default
     # port 1234). Reached via host.docker.internal from inside the container.
     agent_base_url: str = "http://host.docker.internal:1234/v1"

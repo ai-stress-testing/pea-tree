@@ -1,19 +1,29 @@
 # Takt-Harness
 
 A locally-hosted planning harness that drives a **30B-parameter model** (over an
-OpenAI-compatible `/v1` endpoint on port **1234**) through the **Ges-Talt agent
-roster**. Five interfaces: **Docs** (priority 1), Kanban, Agent-Queue,
+OpenAI-compatible `/v1` endpoint on port **1234**) through its **own agent
+roster** (SQLite). Five interfaces: **Docs** (priority 1), Kanban, Agent-Queue,
 Zettlebucket, Chats.
 
 Built to the uploaded PRD/SRS/Implementation-Plan, decomposed by the Ges-Talt
 `pm/project-manager` (see `docs/prd.md`, `docs/issue-specs/`, `docs/backlog.md`).
 
-## Hard invariant (PRD acceptance #1/#2)
+## Agents live in SQLite (self-contained)
 
-The app **never writes to or deletes under `ges-talt/`** — it is read-only
-source (roster + context). **All writes are scoped under `takt-harness/`.**
-This is enforced centrally in `backend/app/guard.py` (the only module that
-touches the filesystem) and proven by `backend/tests/test_guard.py`.
+The harness owns its agents in the `agents` table — `id, team, title, actions,
+skills, tools, model, system_prompt`. It is seeded once from the former
+Ges-Talt roster into `backend/app/agents_seed.json` (regenerate with
+`backend/scripts/gen_agents_seed.py`), then edited here. **No external repo is
+read at runtime** — Ges-Talt targets frontier models; this harness drives a
+smaller local one and keeps its own roster. An agent row is the unit passed to
+the model: `POST /api/agents/{id}/invoke` renders the row's system prompt and
+sends it to the local `/v1` endpoint.
+
+## Write invariant (PRD acceptance #2)
+
+**All writes are scoped under `takt-harness/`.** Enforced centrally in
+`backend/app/guard.py` and proven by `backend/tests/test_guard.py` (traversal,
+absolute, and symlink escapes all rejected).
 
 ## Stack
 

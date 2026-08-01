@@ -9,7 +9,7 @@ from ..agent_client import AgentUnavailable, agent_client
 from ..db import get_session
 from ..doc_library import DOC_TYPES, library, starter
 from ..models import Document, Project, Sprint
-from ..roster import load_agents
+from ..roster import build_system_prompt, get_agent, list_agents
 from ..schemas import (
     AgentAssistIn,
     DocumentIn,
@@ -110,27 +110,25 @@ def update_document(
 
 
 @router.post("/documents/{doc_id}/agent-assist")
-async def agent_assist(doc_id: int, body: AgentAssistIn) -> dict:
-    """Send a highlighted selection to one or more roster agents with a
-    correction/consideration instruction (SRS §3.5)."""
-    known = {a.id: a for a in load_agents()}
-    targets = [known[i] for i in body.agent_ids if i in known] or list(known.values())[:1]
+async def agent_assist(
+    doc_id: int, body: AgentAssistIn, db: Session = Depends(get_session)
+) -> dict:
+    """Send a highlighted selection to one or more roster agents (from the DB)
+    with a correction/consideration instruction (SRS §3.5)."""
+    targets = [a for i in body.agent_ids if (a := get_agent(db, i))]
+    if not targets:
+        targets = list_agents(db)[:1]
+    user = f"INSTRUCTION: {body.instruction}\n\nSELECTION:\n{body.selection}"
     results = []
     for agent in targets:
         system = (
-            agent.description
+            build_system_prompt(agent)
             + "\n\nYou are reviewing a highlighted section of a planning document. "
             "Respond with a concrete revision or a short considered comment."
         )
         try:
             res = await agent_client.chat(
-                [
-                    {"role": "system", "content": system},
-                    {
-                        "role": "user",
-                        "content": f"INSTRUCTION: {body.instruction}\n\nSELECTION:\n{body.selection}",
-                    },
-                ]
+                [{"role": "system", "content": system}, {"role": "user", "content": user}]
             )
             results.append({"agent": agent.id, "text": res.text})
         except AgentUnavailable as e:

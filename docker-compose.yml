@@ -11,15 +11,13 @@ services:
       - "8000:8000"
     environment:
       # DB lives in the named volume, under the guard-scoped data tree.
+      # The agent roster is seeded into SQLite from app/agents_seed.json —
+      # no external repo is mounted or read at runtime.
       TAKT_DATA_DIR: /app/data
-      # Ges-Talt mounted read-only (see the bind mount below).
-      TAKT_GESTALT_ROOT: /gestalt
       TAKT_AGENT_BASE_URL: http://host.docker.internal:1234/v1
       TAKT_AGENT_MODEL: local-model
     volumes:
       - takt-data:/app/data
-      # Read-only bind: the app reads the roster/context, never writes it.
-      - ../Ges-Talt:/gestalt:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

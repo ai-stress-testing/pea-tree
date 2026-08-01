@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .db import init_db
+from .db import SessionLocal, init_db
+from .roster import seed_agents
 from .routers import agents, docs
 
 app = FastAPI(title="Takt-Harness", version="0.1.0")
@@ -29,11 +30,16 @@ app.include_router(agents.router)
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    db = SessionLocal()
+    try:
+        seed_agents(db)  # populate the agents table from the committed seed
+    finally:
+        db.close()
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "root": str(settings.root), "gestalt": str(settings.gestalt_root)}
+    return {"ok": True, "root": str(settings.root)}
 
 
 # Serve the built SPA if present (prod image). Missing in dev — that's fine.

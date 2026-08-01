@@ -5,7 +5,7 @@ only where relevant, and nothing here can reach the ges-talt tree.
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import ForeignKey, Integer, String, Text, DateTime
+from sqlalchemy import ForeignKey, Integer, JSON, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -13,6 +13,26 @@ from .db import Base
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class Agent(Base):
+    """The harness's agents, owned by Takt-Harness (not the Ges-Talt repo).
+    A row is the unit passed to the local model's /v1 route: its
+    system_prompt (+ title/actions/skills) parameterizes the call.
+    """
+    __tablename__ = "agents"
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)  # "team/role" slug
+    name: Mapped[str] = mapped_column(String(120))
+    team: Mapped[str] = mapped_column(String(60), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(60), default="local-model")
+    actions: Mapped[list] = mapped_column(JSON, default=list)   # responsibilities
+    skills: Mapped[list] = mapped_column(JSON, default=list)
+    tools: Mapped[list] = mapped_column(JSON, default=list)
+    system_prompt: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
 class Project(Base):
