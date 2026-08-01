@@ -3,6 +3,9 @@ import { ref, onMounted } from "vue";
 import { api, type AgentStatus } from "./api";
 import DocsView from "./components/DocsView.vue";
 import KanbanView from "./components/KanbanView.vue";
+import QueueView from "./components/QueueView.vue";
+import ZettelView from "./components/ZettelView.vue";
+import ChatsView from "./components/ChatsView.vue";
 
 type View = "docs" | "kanban" | "queue" | "zettel" | "chats";
 const view = ref<View>("docs");
@@ -11,9 +14,9 @@ const status = ref<AgentStatus | null>(null);
 const nav: { id: View; label: string; ready: boolean }[] = [
   { id: "docs", label: "Docs", ready: true },
   { id: "kanban", label: "Kanban", ready: true },
-  { id: "queue", label: "Agent-Queue", ready: false },
-  { id: "zettel", label: "Zettlebucket", ready: false },
-  { id: "chats", label: "Chats", ready: false },
+  { id: "queue", label: "Agent-Queue", ready: true },
+  { id: "zettel", label: "Zettlebucket", ready: true },
+  { id: "chats", label: "Chats", ready: true },
 ];
 
 onMounted(async () => {
@@ -47,10 +50,9 @@ onMounted(async () => {
     <main class="main">
       <DocsView v-if="view === 'docs'" />
       <KanbanView v-else-if="view === 'kanban'" />
-      <div v-else class="stub">
-        <h2>{{ nav.find((n) => n.id === view)?.label }}</h2>
-        <p>Specced in <code>docs/issue-specs/</code>; Docs (priority 1) ships first per the PRD.</p>
-      </div>
+      <QueueView v-else-if="view === 'queue'" />
+      <ZettelView v-else-if="view === 'zettel'" />
+      <ChatsView v-else-if="view === 'chats'" />
     </main>
   </div>
 </template>

@@ -10,6 +10,16 @@ export interface Issue {
   id: number; title: string; description: string; priority: string;
   tags: string; stage: string; project_id: number | null;
 }
+export interface AgentInfo { id: string; title: string; team: string }
+export interface AgentTeam { team: string; agents: AgentInfo[] }
+export interface QueueItem {
+  id: number; agent_id: string; target_kind: string; target_id: number;
+  note: string; priority: number; position: number; state: string;
+  attempts: number; last_error: string;
+}
+export interface ZettelTemplate { id: string; label: string; priority: string; description: string }
+export interface ChatRoom { team: string; agent_count: number; agents: AgentInfo[]; last_message_at: string | null }
+export interface ChatMessage { id: number; room: string; sender: string; agent_id: string | null; content: string; created_at: string }
 
 async function j<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -37,6 +47,26 @@ export const api = {
     fetch("/api/issues", { method: "POST", headers: h(), body: JSON.stringify({ title, priority, tags }) }).then(j<Issue>),
   updateIssue: (id: number, patch: { stage?: string; project_id?: number | null; priority?: string }) =>
     fetch(`/api/issues/${id}`, { method: "PUT", headers: h(), body: JSON.stringify(patch) }).then(j<Issue>),
+  agents: () => fetch("/api/agents").then(j<{ teams: AgentTeam[]; count: number }>),
+  // Agent-Queue
+  queue: () => fetch("/api/queue").then(j<QueueItem[]>),
+  enqueue: (agent_id: string, target_id: number, note = "", priority = 0) =>
+    fetch("/api/queue", { method: "POST", headers: h(), body: JSON.stringify({ agent_id, target_id, note, priority }) }).then(j<QueueItem>),
+  manageQueue: (id: number, patch: { priority?: number; state?: string; agent_id?: string }) =>
+    fetch(`/api/queue/${id}`, { method: "PUT", headers: h(), body: JSON.stringify(patch) }).then(j<QueueItem>),
+  processQueue: (id: number) =>
+    fetch(`/api/queue/${id}/process`, { method: "POST", headers: h() }).then(j<QueueItem>),
+  // Zettlebucket
+  zettelTemplates: () => fetch("/api/zettel/templates").then(j<ZettelTemplate[]>),
+  zettelSubmit: (b: { title: string; description?: string; priority?: string; tags?: string }) =>
+    fetch("/api/zettel/submit", { method: "POST", headers: h(), body: JSON.stringify(b) }).then(j<Issue>),
+  // Chats
+  chatRooms: () => fetch("/api/chats/rooms").then(j<ChatRoom[]>),
+  chatHistory: (room: string) => fetch(`/api/chats/${room}/messages`).then(j<ChatMessage[]>),
+  chatPost: (room: string, content: string) =>
+    fetch(`/api/chats/${room}/messages`, { method: "POST", headers: h(), body: JSON.stringify({ content }) }).then(j<ChatMessage>),
+  chatSummon: (room: string, agent_id: string) =>
+    fetch(`/api/chats/${room}/summon`, { method: "POST", headers: h(), body: JSON.stringify({ agent_id }) }).then(j<ChatMessage>),
   agentAssist: (id: number, selection: string, instruction: string, agent_ids: string[]) =>
     fetch(`/api/documents/${id}/agent-assist`, { method: "POST", headers: h(), body: JSON.stringify({ selection, instruction, agent_ids }) })
       .then(j<{ results: { agent: string; text?: string; error?: string }[] }>),

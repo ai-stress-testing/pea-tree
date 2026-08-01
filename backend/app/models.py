@@ -66,6 +66,39 @@ class Document(Base):
     sprint: Mapped[Sprint] = relationship(back_populates="documents")
 
 
+class QueueItem(Base):
+    """A line item in the Agent-Queue: an agent assigned to iterate over a
+    target (issue/document). Tracks retry state per the PRD rule (retry 3×,
+    skip; 6 further failures → user intervention).
+    """
+    __tablename__ = "queue_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String(120))       # roster agent slug
+    target_kind: Mapped[str] = mapped_column(String(20), default="issue")  # issue|document
+    target_id: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(String(400), default="")
+    priority: Mapped[int] = mapped_column(Integer, default=0)  # higher runs first
+    position: Mapped[int] = mapped_column(Integer, default=0)  # manual ordering
+    # idle | processing | error | done | needs_user
+    state: Mapped[str] = mapped_column(String(20), default="idle")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str] = mapped_column(String(600), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class ChatMessage(Base):
+    """A message in a team breakout room (Chats, TH-5). Persistent history;
+    user messages render right, agent messages left."""
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room: Mapped[str] = mapped_column(String(60), index=True)   # team slug
+    sender: Mapped[str] = mapped_column(String(10))             # "user" | "agent"
+    agent_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class Issue(Base):
     __tablename__ = "issues"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
