@@ -29,3 +29,18 @@ def on_failure(attempts_after: int) -> Transition:
         # in 'error' so it can be picked up again later.
         return Transition(state="error", skip_to_next=True)
     return Transition(state="error", skip_to_next=False)  # will retry shortly
+
+
+# States the runner may still act on. `needs_user`, `done`, `processing`, and
+# `paused` are all terminal-for-the-runner.
+RUNNABLE = {"idle", "error"}
+
+
+def next_candidate(items):
+    """The next item a runner should process from an ordered list: the first
+    runnable, non-paused item. Returns None when the queue has nothing to do
+    (so the runner terminates instead of looping)."""
+    for it in items:
+        if it.state in RUNNABLE:
+            return it
+    return None

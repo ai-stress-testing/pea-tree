@@ -2,8 +2,18 @@
 (PRD acceptance #2): ALL writes land under the `takt-harness/` data tree.
 
 A path that resolves (after following symlinks and `..`) outside that tree is
-rejected, not clamped. Every filesystem write goes through `writable_path()`.
-Fail closed: on any escape the caller gets no path back.
+rejected, not clamped. Fail closed: on any escape the caller gets no path back.
+
+Two layers of enforcement:
+  - ACTIVE today: the one real writer is SQLite, whose path is validated by
+    `assert_db_path_scoped()` at DB init (db.py). That is the enforced control.
+  - REQUIRED for any future file write: `writable_path()` is the mandatory
+    entry point. It currently has no callers (the app persists to SQLite, not
+    files), so it is a latent control by design — but any code that writes a
+    file (e.g. a doc export) MUST route through it. Note: `writable_path`
+    resolves at call time, so a caller must write promptly to the returned path
+    (a symlink swapped between resolve and write is a TOCTOU window); for a
+    single-operator local app this is acceptable, and there are no callers yet.
 
 (The former Ges-Talt read-only rule is retired: the roster now lives in
 SQLite under this same data tree, so there is no external tree to protect.)
