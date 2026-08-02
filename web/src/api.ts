@@ -18,8 +18,9 @@ export interface QueueItem {
   attempts: number; last_error: string;
 }
 export interface ZettelTemplate { id: string; label: string; priority: string; description: string }
-export interface ChatRoom { team: string; agent_count: number; agents: AgentInfo[]; last_message_at: string | null }
+export interface ChatRoom { team: string; agent_count: number; agents: AgentInfo[]; last_message_at: string | null; summon_active: boolean }
 export interface ChatMessage { id: number; room: string; sender: string; agent_id: string | null; content: string; created_at: string }
+export interface SummonState { id: number; room: string; prompt: string; state: string; selected_agents: string[]; message: string }
 
 async function j<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -65,8 +66,16 @@ export const api = {
   chatHistory: (room: string) => fetch(`/api/chats/${room}/messages`).then(j<ChatMessage[]>),
   chatPost: (room: string, content: string) =>
     fetch(`/api/chats/${room}/messages`, { method: "POST", headers: h(), body: JSON.stringify({ content }) }).then(j<ChatMessage>),
-  chatSummon: (room: string, agent_id: string) =>
-    fetch(`/api/chats/${room}/summon`, { method: "POST", headers: h(), body: JSON.stringify({ agent_id }) }).then(j<ChatMessage>),
+  getSummon: (room: string) => fetch(`/api/chats/${room}/summon`).then(j<SummonState | null>),
+  summon: async (room: string, prompt: string): Promise<{ ok: true; summon: SummonState } | { ok: false; message: string }> => {
+    const r = await fetch(`/api/chats/${room}/summon`, { method: "POST", headers: h(), body: JSON.stringify({ prompt }) });
+    if (r.status === 409) return { ok: false, message: (await r.json()).detail ?? "A summon is already active." };
+    if (!r.ok) return { ok: false, message: `${r.status} ${await r.text()}` };
+    return { ok: true, summon: (await r.json()) as SummonState };
+  },
+  completeSummon: (room: string) => fetch(`/api/chats/${room}/summon/complete`, { method: "POST", headers: h() }).then(j<SummonState>),
+  chatReply: (room: string, agent_id: string) =>
+    fetch(`/api/chats/${room}/reply`, { method: "POST", headers: h(), body: JSON.stringify({ agent_id }) }).then(j<ChatMessage>),
   agentAssist: (id: number, selection: string, instruction: string, agent_ids: string[]) =>
     fetch(`/api/documents/${id}/agent-assist`, { method: "POST", headers: h(), body: JSON.stringify({ selection, instruction, agent_ids }) })
       .then(j<{ results: { agent: string; text?: string; error?: string }[] }>),

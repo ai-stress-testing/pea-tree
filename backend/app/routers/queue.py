@@ -66,8 +66,10 @@ def _target_text(db: Session, item: QueueItem) -> str:
     if item.target_kind == "document":
         d = db.get(Document, item.target_id)
         return f"DOCUMENT: {d.title}\n\n{d.content[:2000]}" if d else "(missing document)"
-    i = db.get(Issue, item.target_id)
-    return f"ISSUE: {i.title}\n\n{i.description}" if i else "(missing issue)"
+    if item.target_kind == "issue":
+        i = db.get(Issue, item.target_id)
+        return f"ISSUE: {i.title}\n\n{i.description}" if i else "(missing issue)"
+    return ""  # e.g. a chat summon — the prompt is carried in item.note
 
 
 async def _process(db: Session, item: QueueItem) -> QueueItem:

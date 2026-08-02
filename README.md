@@ -21,11 +21,15 @@ Intake ──▶ Zettlebucket ──▶ Agent-Queue ──▶ Kanban pipeline �
 ## The five interfaces
 
 ### 📝 Docs — the core value proposition
-Projects → sprints → a **25-type document library** (PRD, SRS, architecture,
-risk-assessment, sequence-diagram, test-plan…). A draggable **split editor**
-renders markdown **and Mermaid** live, sanitized against XSS with DOMPurify,
-and auto-saves (30 s + on blur). Highlight a section and **ask one or more
-agents** to revise or comment.
+Projects → sprints → a **25-type document library organized into 7 categories**
+(Intake, Project Management, Design, Engineering, Development, Testing,
+Deliverables/Standards). A draggable **split editor** renders markdown **and
+Mermaid** live, sanitized against XSS with DOMPurify, auto-saves (30 s + on
+blur), and scrolls independently with generous bottom padding. Titles are
+**unique per sprint** (with a suggested alternative on conflict) and renamable
+inline. **Ask an agent inline** about a highlighted selection (floating
+button + ⌘/Ctrl-K) or **Analyze the Full Document** from the toolbar; responses
+appear in a collapsible panel. **Export** any document as Markdown or PDF.
 
 ![Docs](docs/screenshots/docs.png)
 
@@ -52,9 +56,11 @@ to submit. Submitting creates an issue **and routes it to the Agent-Queue** for
 ![Zettlebucket](docs/screenshots/zettel.png)
 
 ### 💬 Chats — team breakout rooms
-Every Ges-Talt team is a room. Post a message (iOS-Messages layout: you on the
-right, agents on the left) and **summon a team agent** to weigh in via the local
-model. Persistent history per room.
+Every team is a room (iOS-Messages layout: you on the right, agents on the
+left). A **summon is model-driven and single-active per room**: your prompt goes
+to the model first, it chooses which agents to summon, those are queued in the
+Agent-Queue, and a **"Summon Active"** badge gates further summons until it
+completes. Summoned agents then join the back-and-forth. Persistent history.
 
 ![Chats](docs/screenshots/chats.png)
 

@@ -16,5 +16,16 @@ test("Chats: enter a team breakout room and post a message", async ({ page }) =>
 
   // User messages render on the right.
   await expect(page.locator(".msg.me .bubble")).toContainText("passkey enrollment");
+
+  // Feature 1: model-driven summon. With the model offline the summon resolves
+  // gracefully (failure notice) and the button re-enables — the gate releases.
+  await page.getByTestId("summon-input").fill("Draft an auth threat model");
+  await page.getByTestId("summon-btn").click();
+  await expect(page.getByTestId("summon-notice")).toBeVisible({ timeout: 15_000 });
+  // Gate released (not stuck "Summon Active"); a new prompt can be summoned again.
+  await expect(page.getByTestId("summon-btn")).toHaveText("Summon");
+  await page.getByTestId("summon-input").fill("try again");
+  await expect(page.getByTestId("summon-btn")).toBeEnabled();
+
   await page.screenshot({ path: `${SHOTS}/chats.png` });
 });

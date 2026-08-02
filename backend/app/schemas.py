@@ -110,3 +110,15 @@ class ChatMessageOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SummonOut(BaseModel):
+    id: int
+    room: str
+    prompt: str
+    state: str
+    selected_agents: list[str]
+    message: str
+
+    class Config:
+        from_attributes = True

@@ -87,6 +87,20 @@ class QueueItem(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
+class Summon(Base):
+    """A single active summon per room (Feature 1). The model selects which
+    agents to summon before any are queued; the summon stays `active` until
+    completed, gating further summons in the same room."""
+    __tablename__ = "summons"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room: Mapped[str] = mapped_column(String(60), index=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(String(12), default="active")  # active|complete|failed
+    selected_agents: Mapped[list] = mapped_column(JSON, default=list)
+    message: Mapped[str] = mapped_column(String(400), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class ChatMessage(Base):
     """A message in a team breakout room (Chats, TH-5). Persistent history;
     user messages render right, agent messages left."""
