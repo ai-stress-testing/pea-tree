@@ -1,69 +1,166 @@
 # Takt-Harness
 
-A locally-hosted planning harness that drives a **30B-parameter model** (over an
-OpenAI-compatible `/v1` endpoint on port **1234**) through its **own agent
-roster** (SQLite). Five interfaces: **Docs** (priority 1), Kanban, Agent-Queue,
-Zettlebucket, Chats.
+**A locally-hosted planning harness for a small model.** Takt-Harness drives a
+**30B-parameter model** — served over an OpenAI-compatible `/v1` endpoint on
+port **1234** (LM Studio / llama.cpp / vLLM) — through a **roster of 105
+specialist agents** to help you think a project plan all the way through
+*before* expensive engineering starts.
 
-Built to the uploaded PRD/SRS/Implementation-Plan, decomposed by the Ges-Talt
-`pm/project-manager` (see `docs/prd.md`, `docs/issue-specs/`, `docs/backlog.md`).
+Five interfaces, one Dockerized app, its own SQLite-backed agent roster, and no
+runtime dependency on any external repo.
 
-## Agents live in SQLite (self-contained)
+```
+Intake ──▶ Zettlebucket ──▶ Agent-Queue ──▶ Kanban pipeline ──▶ Docs
+  (idea)      (triage)      (who iterates)   (In Review→…)    (the plan)
+                    ╲                                          ╱
+                     ╰────────────  Chats (team debates)  ────╯
+```
 
-The harness owns its agents in the `agents` table — `id, team, title, actions,
-skills, tools, model, system_prompt`. It is seeded once from the former
-Ges-Talt roster into `backend/app/agents_seed.json` (regenerate with
-`backend/scripts/gen_agents_seed.py`), then edited here. **No external repo is
-read at runtime** — Ges-Talt targets frontier models; this harness drives a
-smaller local one and keeps its own roster. An agent row is the unit passed to
-the model: `POST /api/agents/{id}/invoke` renders the row's system prompt and
-sends it to the local `/v1` endpoint.
+---
 
-## Write invariant (PRD acceptance #2)
+## The five interfaces
 
-**All writes are scoped under `takt-harness/`.** Enforced centrally in
-`backend/app/guard.py` and proven by `backend/tests/test_guard.py` (traversal,
-absolute, and symlink escapes all rejected).
+### 📝 Docs — the core value proposition
+Projects → sprints → a **25-type document library** (PRD, SRS, architecture,
+risk-assessment, sequence-diagram, test-plan…). A draggable **split editor**
+renders markdown **and Mermaid** live, sanitized against XSS with DOMPurify,
+and auto-saves (30 s + on blur). Highlight a section and **ask one or more
+agents** to revise or comment.
 
-## Stack
+![Docs](docs/screenshots/docs.png)
 
-- **Backend**: FastAPI + SQLAlchemy + SQLite (named Docker volume).
-- **Frontend**: Vue 3 + TypeScript (Vite). Docs split editor renders markdown +
-  Mermaid, sanitized with DOMPurify (XSS defense).
-- **Agent**: OpenAI-compatible `/v1` client with exponential-backoff retries.
-- **Deploy**: `docker-compose up --build`.
+### 🗂 Kanban — the planning pipeline
+Unassigned issues start in the **Zettlebucket** column and move through
+`In Review → Drafting → Approved → Implemented`. Assign to a project, move by
+drag-and-drop or keyboard-friendly nav buttons; the board scrolls horizontally.
+
+![Kanban](docs/screenshots/kanban.png)
+
+### 🤖 Agent-Queue — who iterates next
+A live dashboard of which agent is assigned to which line item, with
+color-coded states and manual controls (reassign, reprioritize, pause/resume,
+process). The retry rule is exactly the spec: **retry 3× → skip to next → after
+6 more failures, escalate to `needs_user`.**
+
+![Agent-Queue](docs/screenshots/queue.png)
+
+### ⚡ Zettlebucket — fast intake
+Templates for bug / feature / performance, a minimalist form, and `⌘/Ctrl+Enter`
+to submit. Submitting creates an issue **and routes it to the Agent-Queue** for
+`pm/project-manager` triage — the intake→queue→board pipeline, wired end to end.
+
+![Zettlebucket](docs/screenshots/zettel.png)
+
+### 💬 Chats — team breakout rooms
+Every Ges-Talt team is a room. Post a message (iOS-Messages layout: you on the
+right, agents on the left) and **summon a team agent** to weigh in via the local
+model. Persistent history per room.
+
+![Chats](docs/screenshots/chats.png)
+
+---
+
+## Agents live in SQLite — self-contained, editable, small-model-native
+
+The harness **owns its roster** in an `agents` table rather than reading any
+external repo at runtime. Ges-Talt targets frontier models; this is a harness
+for a smaller local one, so it carries its own roster you can edit.
+
+| column | meaning |
+|---|---|
+| `id` | `team/role` slug (e.g. `security/senior-secops`) |
+| `team`, `title` | grouping + human role name |
+| `actions` | the role's responsibilities (JSON) |
+| `skills`, `tools` | capability lists (JSON) |
+| `model` | which local model to route to |
+| `system_prompt` | the charter passed to the `/v1` route |
+
+It is seeded once from the former roster into `backend/app/agents_seed.json`
+(regenerate with `backend/scripts/gen_agents_seed.py`), then edited here.
+**An agent row is the unit passed to the model:**
+
+```
+POST /api/agents/{id}/invoke     # build_system_prompt(row) → local /v1 → reply
+```
+
+Verified content: **105 agents across 15 teams**, zero empty
+titles/prompts/actions, 4–7 actions each, every row renders a usable `/v1`
+system prompt.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  UI["Vue 3 + TS SPA"] -->|/api| API["FastAPI"]
+  API --> DB[("SQLite\n(named volume)")]
+  API -->|OpenAI /v1| M["Local 30B model\nhost.docker.internal:1234"]
+  subgraph write-scope guard
+    API
+  end
+```
+
+- **Write invariant** (PRD acceptance #2): every filesystem write goes through
+  `backend/app/guard.py`; anything resolving outside the `takt-harness/` data
+  tree (traversal, absolute, symlink) is rejected. Proven by tests.
+- **Model-interchangeable**: the model is always a parameter; retries use
+  exponential backoff.
+
+## Tech stack
+
+FastAPI · SQLAlchemy · SQLite · Vue 3 + TypeScript (Vite) · marked + DOMPurify +
+Mermaid · Playwright · Docker Compose.
 
 ## Run
 
-### Docker (prod-like)
+```bash
+docker compose up --build          # web on :8000
 ```
-docker-compose up --build          # web on :8000; Ges-Talt mounted read-only
-```
-Run your local model server (LM Studio / llama.cpp / vLLM) exposing
-`http://localhost:1234/v1`. The container reaches it via `host.docker.internal`.
+Run your model server (LM Studio / llama.cpp / vLLM) exposing
+`http://localhost:1234/v1`; the container reaches it via `host.docker.internal`.
 
-### Dev
-```
-# backend
-cd backend && python -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
+**Dev:**
+```bash
+cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
-# frontend
 cd web && npm install && npm run dev      # :5173, proxies /api → :8000
 ```
 
-## Test
-```
-cd backend && pytest            # guard invariant + API
-cd web && npm run typecheck
+## Tests
+
+```bash
+cd backend && pytest         # 12 tests: write-scope guard, agents seed, queue retry rule
+cd web && npm run typecheck  # vue-tsc
+cd web && npm run test:e2e   # 4 Playwright specs across all five interfaces
 ```
 
-## Status
+The Playwright suite boots the real backend + frontend and drives each
+interface end to end (it also produces the screenshots above).
 
-- ✅ Foundation: compose, SQLite, **write-scope guard (+tests)**, agent `/v1`
-  client, read-only roster loader.
-- ✅ Docs (priority 1): projects → sprints → document library (25 types),
-  draggable split editor, live sanitized markdown + Mermaid preview, auto-save
-  (30s + blur), agent-assist on a highlighted selection.
-- ⏳ Kanban, Agent-Queue, Zettlebucket, Chats — specced in `docs/issue-specs/`,
-  built in priority order.
+## Project layout
+
+```
+backend/
+  app/guard.py            write-scope invariant (the only module that writes)
+  app/roster.py           DB-backed roster + build_system_prompt (→ /v1)
+  app/queue_rules.py      retry/skip/escalation state machine (unit-tested)
+  app/agents_seed.json    105 agents, self-contained (generated, committed)
+  app/routers/            docs · kanban · queue · zettel · chats · agents
+  tests/                  guard · agents · queue-rules
+web/
+  src/components/         DocsView · KanbanView · QueueView · ZettelView · ChatsView
+  e2e/                    Playwright specs (also capture docs/screenshots/)
+docs/
+  prd.md · issue-specs/ · backlog.md    decomposed by pm/project-manager
+  screenshots/            the images above
+docker-compose.yml
+```
+
+## Acceptance criteria (PRD §Acceptance)
+
+- ✅ **Writes scoped to Takt-Harness** — enforced by `guard.py`, tested.
+- ✅ **Docker Compose deployment** — `docker compose up --build`.
+- ✅ **Agent endpoint** — OpenAI `/v1` at :1234, reached from the container.
+- ✅ **Docs split editor** — draggable divider, live markdown, auto-save.
+- ✅ **Self-contained roster** — agents in SQLite; no external repo read at runtime.

@@ -9,3 +9,5 @@ web/dist/
 data/*.db
 data/*.db-*
 .env
+web/test-results/
+web/playwright-report/
