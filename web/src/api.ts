@@ -3,7 +3,7 @@ export interface Sprint { id: number; name: string }
 export interface Project { id: number; name: string; sprints: Sprint[] }
 export interface DocMeta { id: number; doc_type: string; title: string }
 export interface Doc extends DocMeta { sprint_id: number; content: string; updated_at: string }
-export interface LibraryItem { type: string; label: string }
+export interface LibraryItem { type: string; label: string; category: string }
 export interface AgentStatus { available: boolean; models: string[]; endpoint: string }
 export interface Stage { id: string; label: string }
 export interface Issue {

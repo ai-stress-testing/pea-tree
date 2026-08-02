@@ -22,6 +22,21 @@ from ..schemas import (
 router = APIRouter(prefix="/api", tags=["docs"])
 
 
+def _title_conflict(db: Session, sprint_id: int, title: str, exclude_id: int | None = None) -> bool:
+    q = select(Document).where(Document.sprint_id == sprint_id, Document.title == title)
+    for d in db.scalars(q):
+        if d.id != exclude_id:
+            return True
+    return False
+
+
+def _suggest_title(db: Session, sprint_id: int, title: str) -> str:
+    n = 2
+    while _title_conflict(db, sprint_id, f"{title} ({n})"):
+        n += 1
+    return f"{title} ({n})"
+
+
 @router.get("/doc-library")
 def get_library() -> list[dict]:
     return library()
@@ -73,6 +88,11 @@ def create_document(body: DocumentIn, db: Session = Depends(get_session)) -> Doc
     if not db.get(Sprint, body.sprint_id):
         raise HTTPException(404, "sprint not found")
     title = body.title or DOC_TYPES[body.doc_type]
+    if _title_conflict(db, body.sprint_id, title):
+        raise HTTPException(409, {
+            "message": f"A document titled '{title}' already exists in this sprint.",
+            "suggestion": _suggest_title(db, body.sprint_id, title),
+        })
     d = Document(
         sprint_id=body.sprint_id,
         doc_type=body.doc_type,
@@ -101,9 +121,14 @@ def update_document(
     d = db.get(Document, doc_id)
     if not d:
         raise HTTPException(404, "document not found")
-    d.content = body.content
-    if body.title is not None:
+    if body.title is not None and body.title != d.title:
+        if _title_conflict(db, d.sprint_id, body.title, exclude_id=doc_id):
+            raise HTTPException(409, {
+                "message": f"A document titled '{body.title}' already exists in this sprint.",
+                "suggestion": _suggest_title(db, d.sprint_id, body.title),
+            })
         d.title = body.title
+    d.content = body.content
     db.commit()
     db.refresh(d)
     return d

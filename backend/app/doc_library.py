@@ -32,6 +32,25 @@ DOC_TYPES: dict[str, str] = {
     "security-review": "Security Review",
 }
 
+# Category each doc type belongs to (Feature 2). Order defines display order.
+CATEGORIES: list[str] = [
+    "Intake", "Project Management", "Design", "Engineering",
+    "Development", "Testing", "Deliverables / Standards",
+]
+DOC_CATEGORY: dict[str, str] = {
+    "feature-request": "Intake", "customer-feedback": "Intake", "business-case": "Intake",
+    "prd": "Project Management", "mvp": "Project Management", "roadmap": "Project Management",
+    "acceptance-criteria": "Project Management", "release-goals": "Project Management",
+    "sprint-board": "Project Management",
+    "mermaid-wireframe": "Design", "user-flows": "Design", "design-spec": "Design",
+    "accessibility-checklist": "Design", "design-review": "Design",
+    "architecture": "Engineering", "srs": "Engineering", "api-spec": "Engineering",
+    "database-design": "Engineering", "sequence-diagram": "Engineering",
+    "implementation-plan": "Development", "issue": "Development", "engineering-notes": "Development",
+    "test-plan": "Testing",
+    "risk-assessment": "Deliverables / Standards", "security-review": "Deliverables / Standards",
+}
+
 _MERMAID_STARTER = """# {label}
 
 ```mermaid
@@ -49,4 +68,7 @@ def starter(doc_type: str, title: str) -> str:
 
 
 def library() -> list[dict]:
-    return [{"type": t, "label": lbl} for t, lbl in DOC_TYPES.items()]
+    return [
+        {"type": t, "label": lbl, "category": DOC_CATEGORY.get(t, "Deliverables / Standards")}
+        for t, lbl in DOC_TYPES.items()
+    ]
